@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Позиция">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Калькулятор позиции</title>
+<style>
+:root{color-scheme:dark;--bg:#101827;--panel:#1b2638;--muted:#9aa9bd;--text:#f4f7fb;--accent:#66d19e;--line:#334155}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 18px env(safe-area-inset-bottom)}
+main{max-width:520px;margin:0 auto;padding:28px 0 32px}.eyebrow{color:var(--muted);font-size:13px;letter-spacing:.08em;text-transform:uppercase}h1{font-size:27px;margin:8px 0 24px}
+label{display:block;color:var(--muted);font-size:14px;margin:18px 0 8px}
+.inputwrap{display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:0 14px}
+input{width:100%;background:transparent;border:0;outline:0;color:var(--text);font-size:22px;padding:15px 0;min-width:0} .unit{color:var(--muted);padding-left:8px}
+.results{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
+.result-label{color:var(--muted);font-size:14px}.big{font-size:34px;font-weight:750;color:var(--accent);margin:6px 0 18px;letter-spacing:-.03em}
+.row{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid var(--line)}.row span:first-child{color:var(--muted);font-size:14px}.row strong{font-size:16px;text-align:right}
+button{width:100%;border:0;border-radius:14px;background:var(--accent);color:#082016;font-weight:700;font-size:16px;padding:16px;margin-top:16px}
+.note{font-size:12px;line-height:1.5;color:var(--muted);margin-top:16px}.error{color:#ff9d9d;min-height:18px;font-size:13px;margin-top:8px}
+.formula{background:#111e2e;border-radius:12px;padding:13px;color:var(--muted);font-size:13px;line-height:1.5;margin-top:16px}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Торговый инструмент</div>
+<h1>Калькулятор позиции</h1>
+<label for="risk">Сумма риска</label>
+<div class="inputwrap"><input id="risk" type="number" inputmode="decimal" min="0" step="any" value="200"><span class="unit">USD</span></div>
+<label for="stop">Стоп-лосс</label>
+<div class="inputwrap"><input id="stop" type="number" inputmode="decimal" min="0" step="any" value="0.5"><span class="unit">%</span></div>
+<label for="lev">Кредитное плечо</label>
+<div class="inputwrap"><input id="lev" type="number" inputmode="decimal" min="0" step="any" value="5"><span class="unit">x</span></div>
+<div class="error" id="error" aria-live="polite"></div>
+<section class="results" aria-live="polite">
+<div class="result-label">Необходимая маржа</div>
+<div class="big" id="margin">$8,000.00</div>
+<div class="row"><span>Полный объём позиции</span><strong id="notional">$40,000.00</strong></div>
+<div class="row"><span>Риск при срабатывании стопа</span><strong id="riskout">$200.00</strong></div>
+<div class="row"><span>Стоп в долларах от цены входа</span><strong id="stopout">0.50%</strong></div>
+<button id="copy">Скопировать расчёт</button>
+</section>
+<div class="formula">Формула маржи: риск ÷ (стоп в долях × плечо).<br>Например: $200 ÷ (0,005 × 5) = $8 000.</div>
+<p class="note">Расчёт предполагает, что стоп указан в процентах от цены позиции. Комиссии, проскальзывание, funding и дополнительные требования биржи не учитываются. Перед входом проверь размер ордера на бирже.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const fmt=n=>n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2});
+function calc(){
+ const risk=Number($('risk').value), stop=Number($('stop').value), lev=Number($('lev').value);
+ const valid=[risk,stop,lev].every(Number.isFinite)&&risk>0&&stop>0&&lev>0;
+ $('error').textContent=valid?'':'Введите положительные значения во все поля.';
+ if(!valid){$('margin').textContent='—';$('notional').textContent='—';$('riskout').textContent='—';$('stopout').textContent='—';return null;}
+ const margin=risk/(stop/100)/lev, notional=margin*lev;
+ $('margin').textContent=fmt(margin);$('notional').textContent=fmt(notional);
+ $('riskout').textContent=fmt(risk);$('stopout').textContent=stop.toLocaleString('ru-RU')+'%';
+ return {risk,stop,lev,margin,notional};
+}
+['risk','stop','lev'].forEach(id=>$(id).addEventListener('input',calc));
+$('copy').addEventListener('click',async()=>{
+ const v=calc();if(!v)return;
+ const t=`Риск: ${fmt(v.risk)}\nСтоп: ${v.stop}%\nПлечо: ${v.lev}x\nМаржа: ${fmt(v.margin)}\nОбъём позиции: ${fmt(v.notional)}`;
+ try{await navigator.clipboard.writeText(t);$('copy').textContent='Скопировано ✓';setTimeout(()=>$('copy').textContent='Скопировать расчёт',1600);}
+ catch(e){$('copy').textContent='Не удалось скопировать';}
+});
+calc();
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js');
+</script>
+</body></html>
